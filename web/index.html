@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Go vs Agent</title>
+<style>
+  :root {
+    --bg: #f4f1ea;
+    --panel: #ffffff;
+    --text: #22201c;
+    --muted: #6f6a60;
+    --line: #e2ddd2;
+    --accent: #2f6f4f;
+    --accent-text: #ffffff;
+    --danger: #a33a2a;
+    --wood: #dcb36a;
+    --wood-line: #4a3920;
+    --pos: #2f6f4f;
+    --neg: #a33a2a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1a1916;
+      --panel: #24221e;
+      --text: #ece8df;
+      --muted: #a39d91;
+      --line: #3a3731;
+      --accent: #4f9a73;
+      --accent-text: #0f1a14;
+      --danger: #e07a67;
+      --wood: #c49a52;
+      --wood-line: #3b2c16;
+      --pos: #6cc093;
+      --neg: #e88b79;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  main {
+    max-width: 980px;
+    margin: 0 auto;
+    padding: 24px 16px 40px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 300px;
+    gap: 24px;
+    align-items: start;
+  }
+  @media (max-width: 760px) {
+    main { grid-template-columns: minmax(0, 1fr); }
+  }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 16px; font-size: 14px; }
+
+  .board-wrap { width: 100%; max-width: 600px; }
+  svg#board { width: 100%; height: auto; display: block; border-radius: 10px;
+              box-shadow: 0 6px 20px rgba(0,0,0,.18); touch-action: manipulation; }
+  .point { cursor: pointer; }
+  .disabled .point { cursor: default; }
+
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 16px;
+  }
+  .panel + .panel { margin-top: 16px; }
+  .panel h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em;
+              color: var(--muted); margin: 0 0 10px; font-weight: 600; }
+
+  .status { font-size: 17px; font-weight: 600; margin-bottom: 6px; }
+  .message { min-height: 1.4em; color: var(--muted); font-size: 14px; }
+  .message.error { color: var(--danger); }
+
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 12px; }
+  .stat { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+  .stat .label { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+  .stat .value { font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; border: 1px solid #555; }
+  .dot.B { background: #111; } .dot.W { background: #fafafa; }
+
+  .buttons { display: flex; gap: 8px; margin-top: 14px; flex-wrap: wrap; }
+  button, select {
+    font: inherit; font-size: 14px;
+    border-radius: 8px; border: 1px solid var(--line);
+    background: var(--panel); color: var(--text);
+    padding: 8px 12px; cursor: pointer;
+  }
+  button.primary { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+  button:disabled { opacity: .45; cursor: default; }
+  .row { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
+  .row label { width: 72px; color: var(--muted); font-size: 14px; }
+  .row select { flex: 1; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
+  td { padding: 3px 0; }
+  td.num { text-align: right; }
+  td.pos { color: var(--pos); } td.neg { color: var(--neg); }
+  tr.total td { border-top: 1px solid var(--line); font-weight: 600; padding-top: 6px; }
+  .why { color: var(--muted); font-size: 13px; margin-bottom: 8px; }
+  .zero td { color: var(--muted); opacity: .6; }
+</style>
+</head>
+<body>
+<main>
+  <section>
+    <h1>Go vs Agent</h1>
+    <p class="sub">9x9 · click an intersection to play · coordinates are row, col</p>
+    <div class="board-wrap"><svg id="board" role="img" aria-label="Go board"></svg></div>
+  </section>
+
+  <aside>
+    <div class="panel">
+      <div class="status" id="status">Loading…</div>
+      <div class="message" id="message"></div>
+      <div class="stats">
+        <div class="stat"><div class="label"><span class="dot B"></span>Black</div>
+          <div class="value" id="scoreB">0</div></div>
+        <div class="stat"><div class="label"><span class="dot W"></span>White</div>
+          <div class="value" id="scoreW">0</div></div>
+        <div class="stat"><div class="label">Captured by Black</div><div class="value" id="capB">0</div></div>
+        <div class="stat"><div class="label">Captured by White</div><div class="value" id="capW">0</div></div>
+      </div>
+      <div class="buttons">
+        <button id="pass">Pass</button>
+        <button id="hint">Hint</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Agent's last move</h2>
+      <div id="agent"><div class="why">No move yet.</div></div>
+    </div>
+
+    <div class="panel">
+      <h2>New game</h2>
+      <div class="row"><label for="color">You play</label>
+        <select id="color"><option value="B">Black (first)</option><option value="W">White</option></select></div>
+      <div class="row"><label for="strategy">Strategy</label><select id="strategy"></select></div>
+      <div class="buttons"><button class="primary" id="new">Start new game</button></div>
+    </div>
+  </aside>
+</main>
+
+<script>
+const SVG_NS = "http://www.w3.org/2000/svg";
+const CELL = 60, MARGIN = 50;
+const board = document.getElementById("board");
+let state = null, hints = [], busy = false;
+
+function el(name, attrs = {}, parent = board) {
+  const node = document.createElementNS(SVG_NS, name);
+  for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
+  parent.appendChild(node);
+  return node;
+}
+
+async function api(path, body) {
+  const options = body === undefined ? {} :
+    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) };
+  const res = await fetch(path, options);
+  return res.json();
+}
+
+function starPoints(n) {
+  if (n === 9) return [[2,2],[2,6],[6,2],[6,6],[4,4]];
+  if (n === 13) return [[3,3],[3,9],[9,3],[9,9],[6,6]];
+  if (n === 19) return [3,9,15].flatMap(r => [3,9,15].map(c => [r,c]));
+  return [];
+}
+
+function drawBoard() {
+  const n = state.size, span = CELL * (n - 1), full = span + 2 * MARGIN;
+  board.setAttribute("viewBox", `0 0 ${full} ${full}`);
+  board.innerHTML = "";
+
+  const defs = el("defs");
+  const grad = (id, inner, outer) => {
+    const g = el("radialGradient", { id, cx: "35%", cy: "30%", r: "70%" }, defs);
+    el("stop", { offset: "0%", "stop-color": inner }, g);
+    el("stop", { offset: "100%", "stop-color": outer }, g);
+  };
+  grad("stoneB", "#5a5a5a", "#0b0b0b");
+  grad("stoneW", "#ffffff", "#cfcac0");
+
+  el("rect", { x: 0, y: 0, width: full, height: full, fill: "var(--wood)" });
+
+  const lineStyle = { stroke: "var(--wood-line)", "stroke-width": 1.4 };
+  for (let i = 0; i < n; i++) {
+    const p = MARGIN + i * CELL;
+    el("line", { x1: MARGIN, y1: p, x2: MARGIN + span, y2: p, ...lineStyle });
+    el("line", { x1: p, y1: MARGIN, x2: p, y2: MARGIN + span, ...lineStyle });
+    const label = { fill: "var(--wood-line)", "font-size": 16, "text-anchor": "middle",
+                    "dominant-baseline": "central", "font-family": "system-ui, sans-serif" };
+    el("text", { x: p, y: MARGIN / 2 - 4, ...label }).textContent = i;          // columns
+    el("text", { x: MARGIN / 2 - 4, y: p, ...label }).textContent = i;          // rows
+  }
+  for (const [r, c] of starPoints(n))
+    el("circle", { cx: MARGIN + c * CELL, cy: MARGIN + r * CELL, r: 4.5, fill: "var(--wood-line)" });
+
+  const last = state.last_move && state.last_move.move !== "pass" ? state.last_move.move : null;
+  const canPlay = state.your_turn && !busy;
+  board.classList.toggle("disabled", !canPlay);
+
+  for (let r = 0; r < n; r++) {
+    for (let c = 0; c < n; c++) {
+      const cx = MARGIN + c * CELL, cy = MARGIN + r * CELL, v = state.board[r][c];
+      if (v !== ".") {
+        el("circle", { cx: cx + 1.5, cy: cy + 2.5, r: CELL * 0.46, fill: "rgba(0,0,0,.25)" });
+        el("circle", { cx, cy, r: CELL * 0.46, fill: `url(#stone${v})`,
+                       stroke: v === "W" ? "#9d978c" : "none", "stroke-width": 0.8 });
+        if (last && last[0] === r && last[1] === c)
+          el("circle", { cx, cy, r: CELL * 0.15, fill: "none",
+                         stroke: v === "B" ? "#fff" : "#111", "stroke-width": 2.5 });
+        continue;
+      }
+      const hintIndex = hints.findIndex(h => h.move[0] === r && h.move[1] === c);
+      if (hintIndex >= 0) {
+        el("circle", { cx, cy, r: CELL * 0.3, fill: "var(--accent)", opacity: 0.85 });
+        el("text", { x: cx, y: cy, fill: "var(--accent-text)", "font-size": 18, "font-weight": 700,
+                     "text-anchor": "middle", "dominant-baseline": "central",
+                     "font-family": "system-ui, sans-serif" }).textContent = hintIndex + 1;
+      }
+      // invisible hit target + hover ghost stone
+      const hit = el("g", { class: "point" });
+      const ghost = el("circle", { cx, cy, r: CELL * 0.46, fill: `url(#stone${state.human})`,
+                                   opacity: 0 }, hit);
+      el("rect", { x: cx - CELL / 2, y: cy - CELL / 2, width: CELL, height: CELL, fill: "transparent" }, hit);
+      if (canPlay) {
+        hit.addEventListener("mouseenter", () => ghost.setAttribute("opacity", 0.45));
+        hit.addEventListener("mouseleave", () => ghost.setAttribute("opacity", 0));
+        hit.addEventListener("click", () => playMove({ row: r, col: c }, ghost));
+      }
+    }
+  }
+}
+
+function moveText(move) { return move === "pass" ? "pass" : `${move[0]}, ${move[1]}`; }
+
+function drawPanel() {
+  const status = document.getElementById("status");
+  const message = document.getElementById("message");
+  const name = { B: "Black", W: "White" };
+
+  if (state.game_over) {
+    const youWon = state.winner === state.human;
+    status.textContent = youWon ? "You win!" : "The agent wins.";
+  } else if (busy) {
+    status.textContent = "Agent is thinking…";
+  } else {
+    status.textContent = state.your_turn ? `Your turn (${name[state.human]})` : "Agent's turn";
+  }
+  message.textContent = state.message;
+  message.classList.toggle("error", state.message.startsWith("Illegal"));
+
+  document.getElementById("scoreB").textContent = state.score.B;
+  document.getElementById("scoreW").textContent = state.score.W;
+  document.getElementById("capB").textContent = state.captures.B;
+  document.getElementById("capW").textContent = state.captures.W;
+  document.getElementById("pass").disabled = !state.your_turn || busy;
+  document.getElementById("hint").disabled = !state.your_turn || busy;
+
+  const agent = document.getElementById("agent");
+  const a = state.agent_move;
+  if (!a) {
+    agent.innerHTML = `<div class="why">No move yet.</div>`;
+  } else {
+    let html = `<div class="why">Played <b>${moveText(a.move)}</b> — ${a.why}</div>`;
+    const rows = Object.entries(a.breakdown);
+    if (rows.length) {
+      html += "<table>";
+      for (const [rule, value] of rows) {
+        const cls = value > 0 ? "pos" : value < 0 ? "neg" : "";
+        html += `<tr class="${value ? "" : "zero"}"><td>${rule.replaceAll("_", " ")}</td>` +
+                `<td class="num ${cls}">${value > 0 ? "+" : ""}${+value.toFixed(2)}</td></tr>`;
+      }
+      html += `<tr class="total"><td>total</td><td class="num">${+a.total.toFixed(2)}</td></tr></table>`;
+    }
+    agent.innerHTML = html;
+  }
+
+  const strategy = document.getElementById("strategy");
+  if (!strategy.options.length) {
+    for (const s of state.strategies) strategy.add(new Option(s, s));
+    strategy.value = state.strategy;
+    document.getElementById("color").value = state.human;
+  }
+}
+
+function render(newState) {
+  if (newState) state = newState;
+  drawBoard();
+  drawPanel();
+}
+
+async function playMove(body, ghost) {
+  if (busy || !state.your_turn) return;
+  busy = true;
+  hints = [];
+  if (ghost) ghost.setAttribute("opacity", 1);   // show your stone right away
+  drawPanel();
+  const next = await api("/api/move", body);
+  // short pause so the agent's reply doesn't appear in the same instant
+  await new Promise(resolve => setTimeout(resolve, 250));
+  busy = false;
+  render(next);
+}
+
+document.getElementById("pass").addEventListener("click", () => playMove({ pass: true }));
+document.getElementById("hint").addEventListener("click", async () => {
+  hints = (await api("/api/hint")).hints;
+  render();
+  if (hints.length) {
+    const list = hints.map((h, i) => `${i + 1}: ${moveText(h.move)} (${+h.total.toFixed(1)})`).join(" · ");
+    document.getElementById("message").textContent = "Agent's picks for you — " + list;
+  }
+});
+document.getElementById("new").addEventListener("click", async () => {
+  hints = [];
+  render(await api("/api/new", {
+    color: document.getElementById("color").value,
+    strategy: document.getElementById("strategy").value,
+  }));
+});
+
+api("/api/state").then(render);
+</script>
+</body>
+</html>
